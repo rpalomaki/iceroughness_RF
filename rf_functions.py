@@ -200,7 +200,7 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
             if output_dir:
                 output.to_csv(output_dir + out_file_prefix + f'_{target_col}.csv')
             
-            return output
+            # return output
             
     elif rf_type == 'multi_target':
         return None
