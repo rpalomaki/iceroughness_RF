@@ -100,7 +100,7 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
 
 
 def run_rf(targets, predictors, n_runs=100, rf_type='single_target', 
-           train_frac=0.7, rf_params=None, random_state=5033,
+           train_frac=0.7, rf_params=None, random_state=5033, 
            output_dir=None, out_file_prefix=None):
     """
     
