@@ -4,7 +4,7 @@ from datetime import datetime
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 
 
@@ -101,7 +101,7 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
 
 def run_rf(targets, predictors, n_runs=100, rf_type='single_target', 
            train_frac=0.7, rf_params=None, random_state=5033,
-           output_fp=None):
+           output_dir=None, out_file_prefix=None):
     """
     
     Arguments
@@ -124,6 +124,13 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
                               max_depth=max_depth, 
                               random_state=random_state)
         If dict, unpacks k, v pairs to pass as params to the RFR call.
+    random_state : int
+        Random state for initializing RandomForestRegressor. Does not get 
+        passed to train/test split function. This random state will be 
+        overwritten if a `random_state` kwarg is passed as part of the 
+        `rf_params` dictionary.
+    output_fp : str, default None.
+        If not none, the filepath to save the RF data using DataFrame.to_csv.
     
     """
     # RF analysis - single target column
@@ -190,7 +197,10 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
 
             output = pd.DataFrame(np.array([n_run_list, predict_list, valid_list]).T, 
                                     columns=['run_no','predict','valid'])
-            output.to_csv(output_fp)
+            if output_dir:
+                output.to_csv(output_dir + out_file_prefix + f'_{target_col}.csv')
+            
+            return output
             
     elif rf_type == 'multi_target':
         return None
