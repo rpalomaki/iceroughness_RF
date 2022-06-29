@@ -1,4 +1,10 @@
 import pandas as pd
+import numpy as np
+from datetime import datetime
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn import metrics
+from tqdm import tqdm
 
 
 
@@ -91,3 +97,120 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
         predictors = predictors.loc['0302']
     
     return targets, predictors
+
+
+def run_rf(targets, predictors, n_runs=100, rf_type='single_target', 
+           train_frac=0.7, rf_params=None, random_state=5033,
+           output_fp=None):
+    """
+    
+    Arguments
+    ---------
+    targets : pd.DataFrame
+        The target(s) to use for the RF model.
+    predictors : pd.DataFrame
+        The predictors to use for the RF model.
+    rf_type : 'single_target' (default) or 'multi_target'
+        If 'single_target', this function will iterate through all columns in 
+        `targets` df and run RF regression on each column as a separate target.
+        If 'multi_target', this function will consider all columns in `targets`
+        simultaneously as one n-dimensional target.
+    train_frac : float
+        stuff
+    rf_params : dict, default None
+        If None, calls RandomForestRegressor passing parameters as follows:
+        RandomForestRegressor(n_estimators=ntrees,
+                              max_features=mtry,
+                              max_depth=max_depth, 
+                              random_state=random_state)
+        If dict, unpacks k, v pairs to pass as params to the RFR call.
+    
+    """
+    # RF analysis - single target column
+    if rf_type == 'single_target':
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+              f'-- Starting single target RF regression ({len(targets.columns)} targets total).')
+        
+        # Some initial setup
+        for target_col in targets.columns:
+            print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                  f'-- Starting target {target_col}')
+            X = predictors
+            y = targets[target_col]
+            valid_list, predict_list, n_run_list = [], [], []
+            # If more than one date present, use weighted sampling for t/t split
+            if len(targets.index.levels[0]) > 1:
+                nsamples_0218 = int(targets.loc['0218'].shape[0]*train_frac)
+                nsamples_0302 = int(targets.loc['0302'].shape[0]*train_frac)
+            
+            # Initiate RandomForestRegressor
+            if rf_params is None:
+                # Default parameters
+                ntrees = 2000    # 2000 recommended in 10.5194/hess-25-2997-2021
+                mtry = 2/3       # From paper above; passed to 'max_features' kwarg in RF regressor
+                max_depth = 7    # Max depth of each tree
+                rf = RandomForestRegressor(n_estimators=ntrees,
+                                max_features=mtry,
+                                max_depth=max_depth, 
+                                random_state=random_state)
+            else:
+                try:
+                    rf = RandomForestRegressor(**rf_params)
+                except TypeError:
+                    print('rf_params must be a dict with valid arguments \
+                           for the sklearn RandomForestRegressor class.')
+                    return None
+                
+            
+            # Loop of RF runs
+            for i in tqdm(range(n_runs)):
+                # Train/test split
+                if len(targets.index.levels[0]) > 1:
+                    # Weighted sampling of multiple dates
+                    train_ind_0218 = pd.MultiIndex.from_product([['0218'], targets.loc['0218'].sample(nsamples_0218).index])
+                    train_ind_0302 = pd.MultiIndex.from_product([['0302'], targets.loc['0302'].sample(nsamples_0302).index])
+                    train_ind = train_ind_0218.union(train_ind_0302)
+                    test_ind = targets[~targets.index.isin(train_ind)].index
+                    X_train, X_test = X.loc[train_ind], X.loc[test_ind]
+                    y_train, y_test = y.loc[train_ind], y.loc[test_ind]
+                else:
+                    # Single date only
+                    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_frac)
+                # Fit and predict
+                rf.fit(X_train, y_train)
+                predictions = rf.predict(X_test)
+                # Save values to list
+                valid_list.extend(y_test.values.tolist())
+                predict_list.extend(predictions)
+                n_run_list.extend(np.repeat(i+1, len(predictions)))
+                # if i != 0 and not (i+1)%100:
+                #     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                #         f'-- {i+1}/{n_runs} complete.')
+            
+
+            output = pd.DataFrame(np.array([n_run_list, predict_list, valid_list]).T, 
+                                    columns=['run_no','predict','valid'])
+            output.to_csv(output_fp)
+            
+    elif rf_type == 'multi_target':
+        return None
+            
+
+
+
+def plot_results():
+    """
+    
+    """
+    plt.close('all')
+    fig, ax = plt.subplots()
+    hex1 = ax.hexbin(predict_list, valid_list, gridsize=50, cmap='inferno')
+    ax.plot((min(predict_list), max(predict_list)), (min(predict_list), max(predict_list)), 'r--')
+    cb1 = fig.colorbar(hex1, ax=ax)
+    cb1.set_label(f'Counts ({len(predict_list)} total predictions)', labelpad=12)
+    ax.set_xlabel('Predicted')
+    ax.set_ylabel('Measured', labelpad=12)
+    ax.set_title(f'{target_col} of 10m pixels trained on both dates')
+    plt.tight_layout()
+    if output_figures:
+        fig.savefig(hex_figure_fname, dpi=300)
