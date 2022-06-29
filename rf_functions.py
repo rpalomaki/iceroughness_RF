@@ -198,19 +198,19 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
 
 
 
-def plot_results():
-    """
+# def plot_results():
+#     """
     
-    """
-    plt.close('all')
-    fig, ax = plt.subplots()
-    hex1 = ax.hexbin(predict_list, valid_list, gridsize=50, cmap='inferno')
-    ax.plot((min(predict_list), max(predict_list)), (min(predict_list), max(predict_list)), 'r--')
-    cb1 = fig.colorbar(hex1, ax=ax)
-    cb1.set_label(f'Counts ({len(predict_list)} total predictions)', labelpad=12)
-    ax.set_xlabel('Predicted')
-    ax.set_ylabel('Measured', labelpad=12)
-    ax.set_title(f'{target_col} of 10m pixels trained on both dates')
-    plt.tight_layout()
-    if output_figures:
-        fig.savefig(hex_figure_fname, dpi=300)
+#     """
+#     plt.close('all')
+#     fig, ax = plt.subplots()
+#     hex1 = ax.hexbin(predict_list, valid_list, gridsize=50, cmap='inferno')
+#     ax.plot((min(predict_list), max(predict_list)), (min(predict_list), max(predict_list)), 'r--')
+#     cb1 = fig.colorbar(hex1, ax=ax)
+#     cb1.set_label(f'Counts ({len(predict_list)} total predictions)', labelpad=12)
+#     ax.set_xlabel('Predicted')
+#     ax.set_ylabel('Measured', labelpad=12)
+#     ax.set_title(f'{target_col} of 10m pixels trained on both dates')
+#     plt.tight_layout()
+#     if output_figures:
+#         fig.savefig(hex_figure_fname, dpi=300)
