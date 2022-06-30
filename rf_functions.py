@@ -189,7 +189,7 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
                 # Save values to list
                 valid_list.extend(y_test.values.tolist())
                 predict_list.extend(predictions)
-                n_run_list.extend(np.repeat(i+1, len(predictions)))
+                n_run_list.extend(np.repeat(int(i+1), len(predictions)))
                 # if i != 0 and not (i+1)%100:
                 #     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 #         f'-- {i+1}/{n_runs} complete.')
