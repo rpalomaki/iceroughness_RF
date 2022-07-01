@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 from datetime import datetime
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -47,9 +48,11 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
     s1_data.index = pd.MultiIndex.from_arrays([s1_data['date'], s1_data['S1_pixel_ID']])
     s1_data.drop(columns=['date','S1_pixel_ID'], inplace=True)
     s1_data.sort_index(inplace=True)
+    # Rename VV and VH columns
+    s1_data.rename(columns={'vv_raw':'VV', 'vh_raw':'VH'}, inplace=True)
     # Separate targets and predictors
-    target_cols = [col for col in s1_data.columns if 'roughness' in col]
-    predict_cols = [col for col in s1_data.columns if col not in target_cols]
+    predict_cols = [col for col in s1_data.columns if re.findall(r'VV|VH', col)]
+    target_cols = [col for col in s1_data.columns if col not in predict_cols]
     targets = s1_data[target_cols]
     predictors = s1_data[predict_cols]
 
@@ -66,7 +69,6 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
     predictors['vv_inv'] = 1/predictors['VV']
     predictors['vh_inv'] = 1/predictors['VH']
     predictors['multiply'] = predictors['VV'] * predictors['VH']
-
     # Create derived metrics - targets
     targets['iqr'] = targets['roughness_p75'] - targets['roughness_p25']
     targets['p95-p5'] = targets['roughness_p95'] - targets['roughness_p5']
@@ -101,7 +103,7 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
 
 def run_rf(targets, predictors, n_runs=100, rf_type='single_target', 
            train_frac=0.7, rf_params=None, random_state=5033, 
-           output_dir=None, out_file_prefix=None):
+           output_dir=None, out_file_prefix=None, return_vals=False):
     """
     
     Arguments
@@ -145,8 +147,11 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
             X = predictors
             y = targets[target_col]
             valid_list, predict_list, n_run_list = [], [], []
+            rmse_list, mae_list, r2_list = [], [], []
             # If more than one date present, use weighted sampling for t/t split
-            if len(targets.index.levels[0]) > 1:
+            # First, create index check object
+            ind_check = np.unique(np.array([x[0] for x in targets.index]))
+            if len(ind_check) > 1:
                 nsamples_0218 = int(targets.loc['0218'].shape[0]*train_frac)
                 nsamples_0302 = int(targets.loc['0302'].shape[0]*train_frac)
             
@@ -172,7 +177,7 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
             # Loop of RF runs
             for i in tqdm(range(n_runs)):
                 # Train/test split
-                if len(targets.index.levels[0]) > 1:
+                if len(ind_check) > 1:
                     # Weighted sampling of multiple dates
                     train_ind_0218 = pd.MultiIndex.from_product([['0218'], targets.loc['0218'].sample(nsamples_0218).index])
                     train_ind_0302 = pd.MultiIndex.from_product([['0302'], targets.loc['0302'].sample(nsamples_0302).index])
@@ -190,17 +195,30 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
                 valid_list.extend(y_test.values.tolist())
                 predict_list.extend(predictions)
                 n_run_list.extend(np.repeat(int(i+1), len(predictions)))
-                # if i != 0 and not (i+1)%100:
-                #     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                #         f'-- {i+1}/{n_runs} complete.')
+                # Metrics
+                rmse = metrics.mean_squared_error(y_test, predictions, squared=False) # squared=True -> MSE
+                mae = metrics.mean_absolute_error(y_test, predictions)
+                r2 = metrics.r2_score(y_test, predictions)
+                rmse_list.append(rmse)
+                mae_list.append(mae)
+                r2_list.append(r2)
             
 
-            output = pd.DataFrame(np.array([n_run_list, predict_list, valid_list]).T, 
-                                    columns=['run_no','predict','valid'])
+            predict_df = pd.DataFrame(np.array([n_run_list, predict_list, valid_list]).T, 
+                                      columns=['run_no','predict','valid'])
+            metrics_df = pd.DataFrame(np.array([rmse_list, mae_list, r2_list]).T, 
+                                      columns=['rmse','mae','r2'])
             if output_dir:
-                output.to_csv(output_dir + out_file_prefix + f'_{target_col}.csv')
-            
-            # return output
+                date = targets.index[0][0]
+                if date == '0218':
+                    date = '0219'
+                fp_p = output_dir + f'rf_predictions/single_date/{date}/' + out_file_prefix + f'_{target_col}.csv'
+                fp_m = output_dir + f'rf_metrics/single_date/{date}/' + out_file_prefix + f'_{target_col}.csv'
+                predict_df.to_csv(fp_p)
+                metrics_df.to_csv(fp_m)
+
+            if return_vals:
+                return predict_df, metrics_df
             
     elif rf_type == 'multi_target':
         return None
