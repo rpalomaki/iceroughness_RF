@@ -213,8 +213,8 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
                 if date == '0218':
                     date = '0219'
                 # in the 2 lines below, change single_date to multi_date and clean up f string
-                fp_p = output_dir + f'rf_predictions/multi_date/{date}/' + out_file_prefix + f'_{target_col}.csv'
-                fp_m = output_dir + f'rf_metrics/multi_date/{date}/' + out_file_prefix + f'_{target_col}.csv'
+                fp_p = output_dir + f'rf_predictions/multi_date/' + out_file_prefix + f'_{target_col}.csv'
+                fp_m = output_dir + f'rf_metrics/multi_date/' + out_file_prefix + f'_{target_col}.csv'
                 predict_df.to_csv(fp_p)
                 metrics_df.to_csv(fp_m)
 
