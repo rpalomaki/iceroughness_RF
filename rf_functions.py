@@ -70,8 +70,11 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
     predictors['vh_inv'] = 1/predictors['VH']
     predictors['multiply'] = predictors['VV'] * predictors['VH']
     # Create derived metrics - targets
-    targets['iqr'] = targets['roughness_p75'] - targets['roughness_p25']
-    targets['p95-p5'] = targets['roughness_p95'] - targets['roughness_p5']
+    targets['zonal_0219_10m_iqr'] = targets['zonal_0219_10m_p75'] - targets['zonal_0219_10m_p25']
+    targets['zonal_0219_10m_p95-p5'] = targets['zonal_0219_10m_p95'] - targets['zonal_0219_10m_p5']
+    targets['zonal_0304_10m_iqr'] = targets['zonal_0304_10m_p75'] - targets['zonal_0304_10m_p25']
+    targets['zonal_0304_10m_p95-p5'] = targets['zonal_0304_10m_p95'] - targets['zonal_0304_10m_p5']
+    
 
     # Add lognorm fit parameters into targets
     stats_data = pd.read_csv(stats_fp)
@@ -103,7 +106,8 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
 
 def run_rf(targets, predictors, n_runs=100, rf_type='single_target', 
            train_frac=0.7, rf_params=None, random_state=5033, 
-           output_dir=None, out_file_prefix=None, return_vals=False):
+           output_dir_predict=None, output_dir_metrics=None, 
+           out_file_prefix=None, return_vals=False):
     """
     
     Arguments
@@ -141,9 +145,11 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
               f'-- Starting single target RF regression ({len(targets.columns)} targets total).')
         
         # Some initial setup
+        target_count = 1
         for target_col in targets.columns:
             print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                  f'-- Starting target {target_col}')
+                  f'-- Starting target {target_col} ({target_count}/{len(targets.columns)} targets)')
+            target_count += 1
             X = predictors
             y = targets[target_col]
             valid_list, predict_list, n_run_list = [], [], []
@@ -208,13 +214,16 @@ def run_rf(targets, predictors, n_runs=100, rf_type='single_target',
                                       columns=['run_no','predict','valid'])
             metrics_df = pd.DataFrame(np.array([rmse_list, mae_list, r2_list]).T, 
                                       columns=['rmse','mae','r2'])
-            if output_dir:
-                date = targets.index[0][0]
-                if date == '0218':
-                    date = '0219'
-                # in the 2 lines below, change single_date to multi_date and clean up f string
-                fp_p = output_dir + f'rf_predictions/multi_date/' + out_file_prefix + f'_{target_col}.csv'
-                fp_m = output_dir + f'rf_metrics/multi_date/' + out_file_prefix + f'_{target_col}.csv'
+            if output_dir_predict:
+                if 'single' in output_dir_predict:
+                    date = targets.index[0][0]
+                    if date == '0218':
+                        date = '0219'
+                    fp_p = f'{output_dir_predict}{date}/{out_file_prefix}_{target_col}.csv'
+                    fp_m = f'{output_dir_metrics}{date}/{out_file_prefix}_{target_col}.csv'
+                else:
+                    fp_p = f'{output_dir_predict}{out_file_prefix}_{target_col}.csv'
+                    fp_m = f'{output_dir_metrics}{out_file_prefix}_{target_col}.csv'
                 predict_df.to_csv(fp_p)
                 metrics_df.to_csv(fp_m)
 
