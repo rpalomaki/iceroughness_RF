@@ -237,31 +237,39 @@ def run_rf_reg(targets, predictors, n_runs=100, rf_type='single_target',
 
 
 def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
-    xlabel=True, ylabel=True, fig_title=None):
+    xlabel=True, ylabel=True, fig_title=None, output_dir_cm=None):
     """
     
     """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8,8))
+        save_fig = True
+    else:
+        save_fig = False
     im = ax.imshow(cm, cmap=cmap, vmin=vmin, vmax=vmax)
     ax.set_xticks(np.arange(cm.shape[1]+1)-.5, minor=True)
     ax.set_yticks(np.arange(cm.shape[0]+1)-.5, minor=True)
-    ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
+    ax.set_xticks(np.arange(cm.shape[1]))
+    ax.set_yticks(np.arange(cm.shape[0]))
+    ax.grid(which='minor', color='w', linestyle='-', linewidth=3)
     ax.tick_params(axis='both', which='minor', bottom=False, left=False)
-    ax.set_xticks(ax.get_xticks()[1:-1])
-    ax.set_yticks(ax.get_yticks()[1:-1])
-    # ax.set_xticklabels(cols, fontsize=16)
-    # ax.set_yticklabels(ind, fontsize=16)
+    ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=16)
+    ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=16)
     cbar_ratio = cm.shape[0]/cm.shape[1]
-    cbar = plt.colorbar(im, ax=ax[j], fraction=0.046*cbar_ratio, pad=0.04)
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046*cbar_ratio, pad=0.04)
     cbar.ax.tick_params(labelsize=18)
     if cbar_label: 
         cbar.ax.set_ylabel(cbar_label, rotation=-90, 
                             va='bottom', fontsize=20, labelpad=12)
-        
 
     for i in range(len(cm)):
         for k in range(len(cm)): # cm guaranteed to be square
-            text = ax[j].text(k, i, cm.iloc[i, k], fontsize=16,
-                        ha='center', va='center', color='k')
+            if cm[i, k]/cm.max() > 0.65:
+                textcolor = 'white'
+            else:
+                textcolor = 'black'
+            text = ax.text(k, i, cm[i, k], fontsize=16,
+                        ha='center', va='center', color=textcolor)
 
     ax.spines['bottom'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -275,6 +283,11 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
     if fig_title:
         ax.set_title(fig_title, fontsize=20)
     
+    plt.tight_layout()
+    if save_fig:
+        fig.savefig(f'{output_dir_cm}/{fig_title}.png', facecolor='white',
+                        dpi=300)
+    
 
 
 
@@ -287,25 +300,33 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
     """
 # Some initial setup
     target_count = 1
+    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+          f'-- Starting RF classification ({len(targets.columns)} targets total).')
     for target_col in targets.columns:
         print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 f'-- Starting target {target_col} ({target_count}/{len(targets.columns)} targets)')
         target_count += 1
-        # Create classes based on n_classes
+        # Create classes
         X = predictors
         target_raw = targets[target_col]
-        if class_split_method == 'percentile':
+        if type(n_classes) == int:
+            # Calculate equal-width percentile bounds based on n_classes
             p_bounds = np.linspace(0, 100, n_classes+1)
             percentiles = [np.percentile(target_raw, p) for p in p_bounds]
             class_labels = np.arange(1, len(p_bounds))
+        elif type(n_classes) == list:
+            # Use specified list of percentiles
+            p_bounds = n_classes
+            percentiles = [np.percentile(target_raw, p) for p in p_bounds]
+            class_labels = np.arange(1, len(p_bounds))
+
         else:
             # Reserve for other split methods methods
             raise ValueError("class_split_method must be 'percentile'.")
         y = pd.cut(target_raw, bins=percentiles, labels=class_labels)
         # NaN check
-        nan_ind = y.loc[pd.isnull(y)].index
-        y.drop(index=nan_ind, inplace=True)
-        X.drop(index=nan_ind, inplace=True)
+        y.dropna(inplace=True)
+        X = X.loc[y.index]
         
         valid_list, predict_list, n_run_list = [], [], []
         # If more than one date present, use weighted sampling for t/t split
@@ -339,10 +360,10 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
             # Train/test split
             if len(ind_check) > 1:
                 # Weighted sampling of multiple dates
-                train_ind_0218 = pd.MultiIndex.from_product([['0218'], targets.loc['0218'].sample(nsamples_0218).index])
-                train_ind_0302 = pd.MultiIndex.from_product([['0302'], targets.loc['0302'].sample(nsamples_0302).index])
+                train_ind_0218 = pd.MultiIndex.from_product([['0218'], X.loc['0218'].sample(nsamples_0218).index])
+                train_ind_0302 = pd.MultiIndex.from_product([['0302'], X.loc['0302'].sample(nsamples_0302).index])
                 train_ind = train_ind_0218.union(train_ind_0302)
-                test_ind = targets[~targets.index.isin(train_ind)].index
+                test_ind = X[~X.index.isin(train_ind)].index
                 X_train, X_test = X.loc[train_ind], X.loc[test_ind]
                 y_train, y_test = y.loc[train_ind], y.loc[test_ind]
             else:
@@ -373,9 +394,11 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
             # Confusion matrix
             cm = metrics.confusion_matrix(y_true=valid_list, y_pred=predict_list)
             fig, ax = plt.subplots(figsize=(6,6))
-            confusion_heatmap(cm, ax, cmap='Blues', vmin=0, vmax=cm.max(),
-                              cbar_label='Count', fig_title=target_col)
-            fig.savefig(f'{output_dir_cm}/{target_col}.png', facecolor='white',
-                        dpi=300)
+            confusion_heatmap(cm, ax=None, cmap='Blues', vmin=0, vmax=cm.max(),
+                              cbar_label='Count', fig_title=target_col, 
+                              output_dir_cm=output_dir_cm)
+            # fig.savefig(f'{output_dir_cm}/{target_col}.png', facecolor='white',
+            #             dpi=300)
+            plt.close('all')
             
         
