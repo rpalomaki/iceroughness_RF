@@ -10,8 +10,8 @@ from tqdm.notebook import tqdm
 
 
 
-def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm=True,
-               drop_ad=True):
+def data_setup(s1_fp, stats_fp=None, moran_fp=None, date=None, s1_units='dB', 
+    drop_vv_glcm=True, drop_ad=True):
     """
     Function to compile all input data to run icer roughness RF models.
 
@@ -71,28 +71,31 @@ def data_setup(s1_fp, stats_fp, moran_fp, date=None, s1_units='dB', drop_vv_glcm
     predictors['vh_inv'] = 1/predictors['VH']
     predictors['multiply'] = predictors['VV'] * predictors['VH']
     # Create derived metrics - targets
-    targets['zonal_0219_10m_iqr'] = targets['zonal_0219_10m_p75'] - targets['zonal_0219_10m_p25']
-    targets['zonal_0219_10m_p95-p5'] = targets['zonal_0219_10m_p95'] - targets['zonal_0219_10m_p5']
-    targets['zonal_0304_10m_iqr'] = targets['zonal_0304_10m_p75'] - targets['zonal_0304_10m_p25']
-    targets['zonal_0304_10m_p95-p5'] = targets['zonal_0304_10m_p95'] - targets['zonal_0304_10m_p5']
+    if [c for c in targets.columns if '_10m_' in c]:
+        targets['zonal_0219_10m_iqr'] = targets['zonal_0219_10m_p75'] - targets['zonal_0219_10m_p25']
+        targets['zonal_0219_10m_p95-p5'] = targets['zonal_0219_10m_p95'] - targets['zonal_0219_10m_p5']
+        targets['zonal_0304_10m_iqr'] = targets['zonal_0304_10m_p75'] - targets['zonal_0304_10m_p25']
+        targets['zonal_0304_10m_p95-p5'] = targets['zonal_0304_10m_p95'] - targets['zonal_0304_10m_p5']
     
 
     # Add lognorm fit parameters into targets
-    stats_data = pd.read_csv(stats_fp)
-    stats_data['date'] = stats_data['date'].astype(str).str.zfill(4)
-    stats_data.index = pd.MultiIndex.from_arrays([stats_data['date'], stats_data['S1_pixel_ID']])
-    stats_data.drop(columns=['date','S1_pixel_ID'], inplace=True)
-    if drop_ad:
-        stats_data.drop(columns=['ad'], inplace=True)
-    targets = targets.join(stats_data)
+    if stats_fp:
+        stats_data = pd.read_csv(stats_fp)
+        stats_data['date'] = stats_data['date'].astype(str).str.zfill(4)
+        stats_data.index = pd.MultiIndex.from_arrays([stats_data['date'], stats_data['S1_pixel_ID']])
+        stats_data.drop(columns=['date','S1_pixel_ID'], inplace=True)
+        if drop_ad:
+            stats_data.drop(columns=['ad'], inplace=True)
+        targets = targets.join(stats_data)
 
     # Add moran data into targets
-    moran = pd.read_csv(moran_fp)
-    moran['date'] = moran['date'].astype(str).str.zfill(4)
-    moran.index = pd.MultiIndex.from_arrays([moran['date'], moran['S1_pixel_ID']])
-    moran.drop(columns=['date','S1_pixel_ID'], inplace=True)
-    moran.columns = ['moran','moran_z','moran_p']
-    targets = targets.join(moran)
+    if moran_fp:
+        moran = pd.read_csv(moran_fp)
+        moran['date'] = moran['date'].astype(str).str.zfill(4)
+        moran.index = pd.MultiIndex.from_arrays([moran['date'], moran['S1_pixel_ID']])
+        moran.drop(columns=['date','S1_pixel_ID'], inplace=True)
+        moran.columns = ['moran','moran_z','moran_p']
+        targets = targets.join(moran)
 
     # Subset by date if necessary
     if date == '0218':
@@ -237,7 +240,8 @@ def run_rf_reg(targets, predictors, n_runs=100, rf_type='single_target',
 
 
 def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
-    xlabel=True, ylabel=True, fig_title=None, output_dir_cm=None):
+    xticklabels=None, yticklabels=None,xlabel=True, ylabel=True, 
+    fig_title=None, output_dir_cm=None):
     """
     
     """
@@ -253,8 +257,7 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
     ax.set_yticks(np.arange(cm.shape[0]))
     ax.grid(which='minor', color='w', linestyle='-', linewidth=3)
     ax.tick_params(axis='both', which='minor', bottom=False, left=False)
-    ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=16)
-    ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=16)
+    
     cbar_ratio = cm.shape[0]/cm.shape[1]
     cbar = plt.colorbar(im, ax=ax, fraction=0.046*cbar_ratio, pad=0.04)
     cbar.ax.tick_params(labelsize=18)
@@ -276,6 +279,16 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
     ax.spines['left'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
+    if xticklabels is not None:
+        ax.set_xticklabels(xticklabels, fontsize=16, rotation=90)
+    else:
+        ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=16)
+
+    if yticklabels is not None:
+        ax.set_yticklabels(yticklabels, fontsize=16)
+    else:
+        ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=16)
+
     if xlabel: 
         ax.set_xlabel('Predicted label', fontsize=20, labelpad=14)
     if ylabel: 
@@ -285,16 +298,16 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
     
     plt.tight_layout()
     if save_fig:
-        fig.savefig(f'{output_dir_cm}/{fig_title}.png', facecolor='white',
-                        dpi=300)
+        fig.savefig(f"{output_dir_cm}/{fig_title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png", 
+                    facecolor='white', dpi=300)
     
 
 
 
-def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, n_classes=5, 
-    class_split_method='percentile', plot_cm =True, 
-    random_state=5033, output_dir_predict=None, 
-    output_dir_cm=None, out_file_prefix=None, return_vals=False):
+def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
+    classes=5, class_split_method='percentile', plot_cm =True, 
+    random_state=5033, output_dir_predict=None, output_dir_cm=None, 
+    out_file_prefix=None, return_vals=False):
     """
     stuff
     """
@@ -308,25 +321,31 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
         target_count += 1
         # Create classes
         X = predictors
-        target_raw = targets[target_col]
-        if type(n_classes) == int:
-            # Calculate equal-width percentile bounds based on n_classes
-            p_bounds = np.linspace(0, 100, n_classes+1)
-            percentiles = [np.percentile(target_raw, p) for p in p_bounds]
-            class_labels = np.arange(1, len(p_bounds))
-        elif type(n_classes) == list:
-            # Use specified list of percentiles
-            p_bounds = n_classes
-            percentiles = [np.percentile(target_raw, p) for p in p_bounds]
-            class_labels = np.arange(1, len(p_bounds))
+    
+        if class_split_method == 'percentile':
+            target_raw = targets[target_col]
+            if type(classes) == int:
+                # Calculate equal-width percentile bounds based on n_classes
+                p_bounds = np.linspace(0, 100, classes+1)
+                percentiles = [np.percentile(target_raw, p) for p in p_bounds]
+                class_labels = np.arange(1, len(p_bounds))
+            elif type(classes) == list and class_split_method == 'percentile':
+                # Use specified list of percentiles
+                p_bounds = classes
+                percentiles = [np.percentile(target_raw, p) for p in p_bounds]
+                class_labels = np.arange(1, len(p_bounds))
+            
+            y = pd.cut(target_raw, bins=percentiles, labels=class_labels)
+            # NaN check
+            y.dropna(inplace=True)
+            X = X.loc[y.index]
+
+        elif class_split_method == 'custom':
+            y = targets[target_col]
 
         else:
             # Reserve for other split methods methods
-            raise ValueError("class_split_method must be 'percentile'.")
-        y = pd.cut(target_raw, bins=percentiles, labels=class_labels)
-        # NaN check
-        y.dropna(inplace=True)
-        X = X.loc[y.index]
+            raise ValueError("class_split_method must be either 'percentile' or 'custom'.")
         
         valid_list, predict_list, n_run_list = [], [], []
         # If more than one date present, use weighted sampling for t/t split
@@ -392,13 +411,16 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
 
         if plot_cm:
             # Confusion matrix
-            cm = metrics.confusion_matrix(y_true=valid_list, y_pred=predict_list)
+            cm_labels = np.unique(predict_list).tolist()
+            cm = metrics.confusion_matrix(y_true=valid_list, y_pred=predict_list, 
+                                          labels=cm_labels)
             fig, ax = plt.subplots(figsize=(6,6))
+            if 'single' in output_dir_predict:
+                fig_title = f'{target_col}_single_{date}'
+            else:
+                fig_title = f'{target_col}_multi'
             confusion_heatmap(cm, ax=None, cmap='Blues', vmin=0, vmax=cm.max(),
-                              cbar_label='Count', fig_title=target_col, 
+                              xticklabels=cm_labels, yticklabels=cm_labels,
+                              cbar_label='Count', fig_title=fig_title, 
                               output_dir_cm=output_dir_cm)
-            # fig.savefig(f'{output_dir_cm}/{target_col}.png', facecolor='white',
-            #             dpi=300)
             plt.close('all')
-            
-        
