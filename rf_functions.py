@@ -239,7 +239,7 @@ def run_rf_reg(targets, predictors, n_runs=100, rf_type='single_target',
 
 
 
-def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
+def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
     xticklabels=None, yticklabels=None,xlabel=True, ylabel=True, 
     fig_title=None, output_dir_cm=None):
     """
@@ -250,6 +250,13 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
         save_fig = True
     else:
         save_fig = False
+    # Normalize if indicated
+    if norm:
+        cm_df = pd.DataFrame(cm)
+        cm_norm = cm_df.div(cm_df.sum(axis=1), axis=0)
+        cm = cm_norm.round(2).values
+        vmax = 1
+
     im = ax.imshow(cm, cmap=cmap, vmin=vmin, vmax=vmax)
     ax.set_xticks(np.arange(cm.shape[1]+1)-.5, minor=True)
     ax.set_yticks(np.arange(cm.shape[0]+1)-.5, minor=True)
@@ -267,12 +274,19 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, cbar_label=None,
 
     for i in range(len(cm)):
         for k in range(len(cm)): # cm guaranteed to be square
-            if cm[i, k]/cm.max() > 0.65:
-                textcolor = 'white'
+            if not norm:
+                if cm[i, k]/cm.max() > 0.65:
+                    textcolor = 'white'
+                else:
+                    textcolor = 'black'
             else:
-                textcolor = 'black'
+                if cm[i, k] > 0.65:
+                    textcolor = 'white'
+                else:
+                    textcolor = 'black'
+            
             text = ax.text(k, i, cm[i, k], fontsize=16,
-                        ha='center', va='center', color=textcolor)
+                            ha='center', va='center', color=textcolor)
 
     ax.spines['bottom'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -420,7 +434,8 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7,
             else:
                 fig_title = f'{target_col}_multi'
             confusion_heatmap(cm, ax=None, cmap='Blues', vmin=0, vmax=cm.max(),
+                              norm=True,
                               xticklabels=cm_labels, yticklabels=cm_labels,
-                              cbar_label='Count', fig_title=fig_title, 
+                              cbar_label='Percentage', fig_title=fig_title, 
                               output_dir_cm=output_dir_cm)
             plt.close('all')
