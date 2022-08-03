@@ -240,7 +240,7 @@ def run_rf_reg(targets, predictors, n_runs=100, rf_type='single_target',
 
 
 def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
-    xticklabels=None, yticklabels=None,xlabel=True, ylabel=True, 
+    xticklabels=None, yticklabels=None,xlabel=True, ylabel=True, font_scale=1,
     fig_title=None, output_dir_cm=None):
     """
     
@@ -267,10 +267,10 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
     
     cbar_ratio = cm.shape[0]/cm.shape[1]
     cbar = plt.colorbar(im, ax=ax, fraction=0.046*cbar_ratio, pad=0.04)
-    cbar.ax.tick_params(labelsize=18)
+    cbar.ax.tick_params(labelsize=10*font_scale)
     if cbar_label: 
         cbar.ax.set_ylabel(cbar_label, rotation=-90, 
-                            va='bottom', fontsize=20, labelpad=12)
+                            va='bottom', fontsize=10*font_scale, labelpad=12)
 
     for i in range(len(cm)):
         for k in range(len(cm)): # cm guaranteed to be square
@@ -285,7 +285,7 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
                 else:
                     textcolor = 'black'
             
-            text = ax.text(k, i, cm[i, k], fontsize=16,
+            text = ax.text(k, i, format(cm[i, k], '.2f'), fontsize=12*font_scale,
                             ha='center', va='center', color=textcolor)
 
     ax.spines['bottom'].set_visible(False)
@@ -294,21 +294,21 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
     ax.spines['right'].set_visible(False)
 
     if xticklabels is not None:
-        ax.set_xticklabels(xticklabels, fontsize=16, rotation=90)
+        ax.set_xticklabels(xticklabels, fontsize=10*font_scale)#, rotation=90)
     else:
-        ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=16)
+        ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=10*font_scale)
 
     if yticklabels is not None:
-        ax.set_yticklabels(yticklabels, fontsize=16)
+        ax.set_yticklabels(yticklabels, fontsize=10*font_scale, rotation=90, va='center')
     else:
-        ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=16)
+        ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=10*font_scale)
 
     if xlabel: 
-        ax.set_xlabel('Predicted label', fontsize=20, labelpad=14)
+        ax.set_xlabel('Predicted label', fontsize=12*font_scale, labelpad=14)
     if ylabel: 
-        ax.set_ylabel('True label', fontsize=20, labelpad=14)
+        ax.set_ylabel('True label', fontsize=12*font_scale, labelpad=14)
     if fig_title:
-        ax.set_title(fig_title, fontsize=20)
+        ax.set_title(fig_title, fontsize=12*font_scale)
     
     plt.tight_layout()
     if save_fig:
@@ -321,7 +321,7 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
 def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7, 
     classes=5, class_split_method='percentile', plot_cm =True, 
     random_state=5033, output_dir_predict=None, output_dir_cm=None, 
-    out_file_prefix=None, return_vals=False):
+    out_file_prefix=None, return_cm=False):
     """
     stuff
     """
@@ -439,3 +439,6 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7,
                               cbar_label='Percentage', fig_title=fig_title, 
                               output_dir_cm=output_dir_cm)
             plt.close('all')
+
+            if return_cm:
+                return cm, cm_labels
