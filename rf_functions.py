@@ -265,12 +265,13 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
     ax.grid(which='minor', color='w', linestyle='-', linewidth=3)
     ax.tick_params(axis='both', which='minor', bottom=False, left=False)
     
-    cbar_ratio = cm.shape[0]/cm.shape[1]
-    cbar = plt.colorbar(im, ax=ax, fraction=0.046*cbar_ratio, pad=0.04)
-    cbar.ax.tick_params(labelsize=10*font_scale)
-    if cbar_label: 
-        cbar.ax.set_ylabel(cbar_label, rotation=-90, 
-                            va='bottom', fontsize=10*font_scale, labelpad=12)
+    if cbar_label is not None:
+        cbar_ratio = cm.shape[0]/cm.shape[1]
+        cbar = plt.colorbar(im, ax=ax, fraction=0.046*cbar_ratio, pad=0.04)
+        cbar.ax.tick_params(labelsize=10*font_scale)
+        if cbar_label: 
+            cbar.ax.set_ylabel(cbar_label, rotation=-90, 
+                                va='bottom', fontsize=10*font_scale, labelpad=12)
 
     for i in range(len(cm)):
         for k in range(len(cm)): # cm guaranteed to be square
@@ -285,7 +286,7 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
                 else:
                     textcolor = 'black'
             
-            text = ax.text(k, i, format(cm[i, k], '.2f'), fontsize=12*font_scale,
+            text = ax.text(k, i, format(cm[i, k], '.2f'), fontsize=15*font_scale,
                             ha='center', va='center', color=textcolor)
 
     ax.spines['bottom'].set_visible(False)
@@ -294,14 +295,14 @@ def confusion_heatmap(cm, ax, cmap, vmin=0, vmax=1, norm=True, cbar_label=None,
     ax.spines['right'].set_visible(False)
 
     if xticklabels is not None:
-        ax.set_xticklabels(xticklabels, fontsize=10*font_scale)#, rotation=90)
+        ax.set_xticklabels(xticklabels, fontsize=11*font_scale)#, rotation=90)
     else:
-        ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=10*font_scale)
+        ax.set_xticklabels(np.arange(1,len(cm)+1), fontsize=11*font_scale)
 
     if yticklabels is not None:
-        ax.set_yticklabels(yticklabels, fontsize=10*font_scale, rotation=90, va='center')
+        ax.set_yticklabels(yticklabels, fontsize=11*font_scale, rotation=90, va='center')
     else:
-        ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=10*font_scale)
+        ax.set_yticklabels(np.arange(1,len(cm)+1), fontsize=11*font_scale)
 
     if xlabel: 
         ax.set_xlabel('Predicted label', fontsize=12*font_scale, labelpad=14)
