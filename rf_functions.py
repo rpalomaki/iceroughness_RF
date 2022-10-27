@@ -431,9 +431,9 @@ def run_rf_cla(targets, predictors, rf_params=None, n_runs=100, train_frac=0.7,
                                           labels=cm_labels)
             fig, ax = plt.subplots(figsize=(6,6))
             if 'single' in output_dir_predict:
-                fig_title = f'{target_col}_single_{date}'
+                fig_title = f'{out_file_prefix}_{target_col}_single_{date}'
             else:
-                fig_title = f'{target_col}_multi'
+                fig_title = f'{out_file_prefix}_{target_col}_multi'
             confusion_heatmap(cm, ax=None, cmap='Blues', vmin=0, vmax=cm.max(),
                               norm=True,
                               xticklabels=cm_labels, yticklabels=cm_labels,
